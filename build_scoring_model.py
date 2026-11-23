@@ -9,7 +9,7 @@ import openpyxl
 
 SOURCE = Path(r"C:/Users/Owner/Desktop/多维数据比较1120.xlsx")
 HOLDINGS_Q3_SOURCE = Path(r"C:/Users/Owner/Desktop/周报/重仓持股26Q3.xlsx")
-HOLDINGS_Q2_SOURCE = Path(r"C:/Users/Owner/Desktop/重仓持股26Q2.xlsx")
+HOLDINGS_Q2_SOURCE = Path(r"C:/Users/Owner/Desktop/每周更新/二季度机构重仓股持仓汇总.xlsx")  # 原重仓持股26Q2.xlsx已删除，此为同源替代（2026二季，表头结构一致）
 HOLDINGS_DATABASE = Path(r"C:/Users/Owner/Desktop/周报/主动偏股基金数据库_2026Q3.xlsx")
 RECENT_IPO_SOURCE = Path(r"C:/Users/Owner/WorkBuddy/2026-10-26-13-16-06/recent_ipos_20261120.csv")
 OUTPUT = Path(r"C:/Users/Owner/Desktop/周报/行业比较与个股筛选模型_20261120.html")
@@ -167,10 +167,13 @@ def unpack(row, level, parent=None):
     unlock_ratio = num(row[67])
     unlock_amount = num(row[66]) * num(row[5]) / 10000 if num(row[66]) is not None and num(row[5]) is not None else None
     growth27 = num(row[25]) if num(row[15]) is not None and num(row[15]) > 0 else None
+    growth_all = [num(row[24]) if num(row[14]) is not None and num(row[14]) > 0 else None,
+                  growth27,
+                  num(row[26]) if num(row[16]) is not None and num(row[16]) > 0 else None]
     item = {
         "code": code, "name": name, "level": level, "industry": industry, "subindustry": str(row[3] or ""),
         "marketCap": num(row[4]), "week": num(row[6]), "month": num(row[7]), "ytd": num(row[8]), "since924": num(row[9]),
-        "eps": eps, "eps27": eps[6], "epsGrowth": growth27, "epsRev": revision(row[19], row[20]),
+        "eps": eps, "eps27": eps[6], "epsGrowth": growth27, "epsGrowthAll": growth_all, "epsRev": revision(row[19], row[20]),
         "epsStreak": weekly_streak(row[19], row[20], row[21], row[22]),
         "epsLevelRaw": own_level_score(eps[:7], eps[6]),
         "roe": roe, "roe26": roe[5], "roe27": roe[6], "roeDelta": roe_delta,
@@ -234,6 +237,133 @@ for s in stocks:
     s["divPass"] = (s["yieldPass"] and s["stablePass"] and s["coveragePass"] is True) if trig else True
     s["divStatus"] = "非红利约束" if not trig else ("通过" if s["divPass"] else ("未通过" if not s["yieldPass"] else ("待补数据" if s["coveragePass"] is None else "未通过")))
 
+
+# ---------- 红利资产筛选策略 v2：估值走廊框架 + 红马增强标签 ----------
+# 框架来源：券商策略估值走廊研究框架及配套自动更新底稿(2026-11)；增强参照：红利"红马"选股思路。
+def ddm_theory_pe(roe1, d1, disc=0.07, t1=5, t2=10, decay=0.02, d_step=0.1, d1_cap=0.9,
+                  g3=0.02, d3_floor=0.7, d3_cap=0.95, g1_cap=0.065, g2_cap=0.04):
+    """三阶段DDM理论PE（EPS1=1）。阶段规则沿用估值走廊底稿：阶段2 ROE衰减2pct、分红率+10pct(上限0.9)；
+    阶段3永续，分红率钳制在0.7-0.95，g=2%。g_t = ROE_t × (1 - d_t)。"""
+    d1 = min(d1, d1_cap)
+    roe2, d2 = roe1 - decay, min(d1 + d_step, d1_cap)
+    roe3, d3 = roe2 - decay, min(max(d2 + d_step, d3_floor), d3_cap)
+    # g外推上限：框架案例库99只资产的g1最大6.4%（高留存成长股的留存收益不可按DDM无限外推）
+    g1, g2 = min(roe1 * (1 - d1), g1_cap), min(roe2 * (1 - d2), g2_cap)
+    pe, eps, t = 0.0, 1.0, 0
+    for rr, dd, gg, tt, last in [(roe1, d1, g1, t1, False), (roe2, d2, g2, t2, False), (roe3, d3, g3, None, True)]:
+        for _ in range(tt or 100):
+            t += 1
+            pe += eps * dd / (1 + disc) ** t
+            eps *= (1 + gg)
+            if last:
+                break
+        if last:
+            pe += (eps * dd) / (1 + disc) ** t / (disc - g3)
+    return pe
+
+def pct_rank(vals, v):
+    """v 在 vals 中的横截面分位(0-100)；vals 需已剔除 None。"""
+    clean = [x for x in vals if x is not None]
+    if not clean or v is None:
+        return None
+    return 100.0 * sum(1 for x in clean if x <= v) / len(clean)
+
+def build_dividend_strategy(stocks):
+    """估值走廊框架红利选股：
+    初筛（价值资产池）：ROE27E≥7% + ROE变异系数≤全A 30%分位 + 静态与27E股息率均≥2% + 分红稳定
+                      + OCF/DPS≥200% + 市值≥100亿 + 非次新；
+    定价：三阶段DDM理论PE/PB → 估值走廊[0.8,1.2]×理论PB → 当前PB折溢价；
+    补偿：应有股息率=3.1%+0.3×(ROE标准差-1.1pp)（水电基准），超额股息率=实际-应有；
+    评分：估值折价35 + 股息安全边际25 + 盈利质量稳定20 + 分红可持续20；
+    标签：红马增强（长江）=26E/27E/28E EPS同比均>-5%（成长护航）且CV≤全A中位（盈利稳态）。"""
+    # 全A ROE变异系数分布（框架口径：与全A个股比）
+    cvs_all = []
+    for s in stocks:
+        seq = [x for x in (s["roe"][:7] if s.get("roe") else []) if x is not None]
+        if len(seq) >= 5:
+            m = sum(seq) / len(seq)
+            if m > 0:
+                s["_roeCV"] = (sum((x - m) ** 2 for x in seq) / len(seq)) ** 0.5 / m
+                s["_roeSD"] = (sum((x - m) ** 2 for x in seq) / len(seq)) ** 0.5
+                cvs_all.append(s["_roeCV"])
+    cvs_all.sort()
+    cv_q30 = cvs_all[int(0.30 * (len(cvs_all) - 1))] if cvs_all else 0.5
+    cv_med = cvs_all[len(cvs_all) // 2] if cvs_all else 0.5
+    avg_payout = lambda s: (lambda ps: sum(ps) / len(ps) if ps else None)([p for p in s["payouts"] if p is not None and p > 0])
+    pool = []
+    for s in stocks:
+        if s["recentIPO"] or (s["marketCap"] or 0) < 100:
+            continue
+        roe27, cv = s["roe27"], s.get("_roeCV")
+        y_ttm, y27, pay, cov = s["staticYield"], s["yield27"], avg_payout(s), s["coverage"]
+        if not (roe27 is not None and roe27 >= 7 and cv is not None and cv <= cv_q30):
+            continue
+        if not (y_ttm is not None and y_ttm >= 2 and y27 is not None and y27 >= 2):
+            continue
+        if s["stablePass"] is not True:
+            continue
+        if cov is not None and cov < 150:
+            continue
+        pb27 = s["pb27"]
+        pe27 = s["pe27"]
+        if pb27 is None and not (pe27 is not None and pe27 > 0):
+            continue
+        d1 = (pay / 100) if (pay is not None and 0 < pay <= 150) else 0.5  # payouts为百分数口径
+        tp = ddm_theory_pe(roe27 / 100, d1)
+        theory_pb = tp * roe27 / 100
+        ratio = (pb27 / theory_pb) if (pb27 and theory_pb > 0) else ((pe27 / tp) if (pe27 and tp > 0) else None)
+        sd = s.get("_roeSD") or 1.1
+        req_yield = 3.1 + 0.3 * (sd - 1.1)
+        pool.append({
+            "code": s["code"], "name": s["name"], "industry": s["industry"],
+            "roe27": roe27, "roeCV": round(cv, 3), "roeSD": round(sd, 2),
+            "yieldTTM": round(y_ttm, 2), "yield27": round(y27, 2), "reqYield": round(req_yield, 2),
+            "excessYield": round(y27 - req_yield, 2),
+            "payout": round((d1 * 100) if d1 < 1.5 else d1, 1),
+            "coverage": cov, "theoryPE": round(tp, 2), "theoryPB": round(theory_pb, 3),
+            "pb27": pb27, "pe27": pe27, "ratio": round(ratio, 3) if ratio else None,
+            "premium": round((ratio - 1) * 100, 1) if ratio else None,
+            "corridor": ("低于下沿" if ratio < 0.8 else "走廊内" if ratio <= 1.2 else "高于上沿") if ratio else "—",
+            "growthTag": all(g is not None and g > -5 for g in s.get("epsGrowthAll", [None, None, None])),
+        })
+    # 评分（仅池内横截面）
+    if pool:
+        r_val = [x["ratio"] for x in pool if x["ratio"]]
+        r_exy = [x["excessYield"] for x in pool]
+        r_roe = [x["roe27"] for x in pool]
+        r_cv = [x["roeCV"] for x in pool]
+        r_cov = [x["coverage"] for x in pool if x["coverage"] is not None]
+        r_pay = [x["payout"] for x in pool]
+        for x in pool:
+            val_score = pct_rank(r_val, x["ratio"])
+            val_score = 100 - val_score if val_score is not None else 50
+            exy_score = pct_rank(r_exy, x["excessYield"]) or 50
+            roe_s = pct_rank(r_roe, x["roe27"]) or 50
+            cv_s = 100 - (pct_rank(r_cv, x["roeCV"]) or 50)
+            cov_s = pct_rank(r_cov, x["coverage"]) if (x["coverage"] is not None and r_cov) else 50
+            pay_s = pct_rank(r_pay, x["payout"]) or 50
+            x["valScore"] = round(val_score, 1)
+            x["yieldScore"] = round(exy_score, 1)
+            x["qualityScore"] = round(0.5 * roe_s + 0.5 * cv_s, 1)
+            x["sustainScore"] = round(0.5 * (cov_s or 50) + 0.3 * pay_s + 0.2 * (100 if x["coverage"] is not None else 50), 1)
+            x["score"] = round(0.35 * val_score + 0.25 * exy_score + 0.20 * (0.5 * roe_s + 0.5 * cv_s) + 0.20 * x["sustainScore"], 1)
+            x["redHorse"] = bool(x["growthTag"] and x["roeCV"] <= cv_med)
+        pool.sort(key=lambda z: -z["score"])
+        for i, x in enumerate(pool, 1):
+            x["rank"] = i
+    return {
+        "params": {"disc": 0.07, "t1": 5, "t2": 10, "decay": 0.02, "g3": 0.02,
+                    "reqBase": 3.1, "reqSlope": 0.3, "reqBaseSD": 1.1,
+                    "corridor": [0.8, 1.2], "cvQ30": round(cv_q30, 3), "cvMedian": round(cv_med, 3)},
+        "poolCount": len(pool),
+        "belowFloor": sum(1 for x in pool if x["corridor"] == "低于下沿"),
+        "inCorridor": sum(1 for x in pool if x["corridor"] == "走廊内"),
+        "aboveCap": sum(1 for x in pool if x["corridor"] == "高于上沿"),
+        "redHorseN": sum(1 for x in pool if x["redHorse"]),
+        "list": pool,
+    }
+
+DIV_STRATEGY = build_dividend_strategy(stocks)
 
 # 2026Q3主动偏股基金前十大重仓：Q3决定最新得分，Q2仅作同口径环比。
 # 个股取重仓持股表；行业取数据库的配置与超配汇总，不与26H1全持仓混比。
@@ -450,7 +580,7 @@ for group in (stocks, [x for x in industries if x["level"] == "L1"], [x for x in
         x["rank"] = rank
 
 _asof_s = ASOF.strftime("%Y-%m-%d")
-payload = {"asof": _asof_s, "monthStart": _asof_s, "unlockEnd": add_two_months(ASOF).strftime("%Y-%m-%d"), "industries": industries, "stocks": stocks}
+payload = {"asof": _asof_s, "monthStart": _asof_s, "unlockEnd": add_two_months(ASOF).strftime("%Y-%m-%d"), "industries": industries, "stocks": stocks, "divStrategy": DIV_STRATEGY}
 summary = {
     "stocks": sum(not s["recentIPO"] for s in stocks), "recentIPOs": sum(s["recentIPO"] for s in stocks), "l1": 31, "l2": 134,
     "highIndustries": sum(x["level"] == "L1" and x["totalScore"] >= 60 for x in industries),
@@ -471,16 +601,16 @@ HTML = r'''<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta n
 .scatter{height:auto;background:#fff;border:1px solid #edf0f4;border-radius:8px}.scatter svg{display:block}.scatter text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;fill:#4b586b}.scatter .tick{font-size:12px;fill:#697586}.scatter .axis{stroke:#8d99aa;stroke-width:1.2}.scatter .grid{stroke:#cbd3de;stroke-width:1;stroke-dasharray:4 4}.scatter .axisTitle{font-size:12px;font-weight:600;fill:#556174}.scatter .indLabel{font-size:12px;font-weight:650;fill:#243754;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}.scatter .otherLabel{font-size:11px;font-weight:500;fill:#536174}.scatter circle{cursor:pointer;transition:fill-opacity .15s}.scatter circle:hover{fill-opacity:1;stroke:#14243e;stroke-width:2}.scatter .leader{stroke:#9aa7b8;stroke-width:1}.chartFoot{display:flex;justify-content:space-between;gap:12px;margin-top:8px;font-size:12px;color:#697586}.chartKey{display:flex;gap:14px;flex-wrap:wrap}.chartKey i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}.panelHead .btn{white-space:nowrap;padding:6px 10px;font-size:12px}
 .metricPill{display:inline-flex;align-items:center;justify-content:center;min-width:52px;height:27px;padding:0 9px;border:1px solid transparent;border-radius:6px;font-size:12px;font-weight:750;font-variant-numeric:tabular-nums}.toneGood{background:#e8f5f0;color:#14715e;border-color:#cce8dd}.toneMid{background:#edf3fd;color:#3467a9;border-color:#dce7f7}.toneWatch{background:#fff5df;color:#9a6713;border-color:#f3e3bb}.toneRisk{background:#fff0f0;color:#b84a52;border-color:#f2d4d6}.cycleTag{display:inline-flex;align-items:center;min-height:25px;padding:2px 9px;border:1px solid transparent;border-radius:6px;font-size:12px;font-weight:650}.valuationTag{display:inline-flex;align-items:center;min-height:25px;padding:2px 8px;border:1px solid transparent;border-radius:6px;font-size:12px;font-weight:650;font-variant-numeric:tabular-nums}.scoreLegend{display:flex;gap:13px;align-items:center;flex-wrap:wrap;margin:-3px 0 12px;font-size:11px;color:#707c8d}.scoreLegend span{display:inline-flex;align-items:center;gap:5px}.scoreLegend i{width:8px;height:8px;border-radius:2px;display:inline-block}
 </style></head><body>
-<header class="hero"><div class="wrap"><div class="heroLine"><div><div class="eyebrow">MULTI-FACTOR VALUATION SCORE</div><h1>行业与个股性价比评分</h1><p>盈利动能 × ROE质量 × 估值分位 × 价格回撤 × 公募拥挤度</p></div><div class="date">数据截面<b>2026-11-13</b>公募持仓截至2026Q3</div></div><nav class="nav"><button class="active" data-page="overview">行业评分</button><button data-page="stocks">个股评分</button><button data-page="crowding">公募拥挤度</button><button data-page="dividends">红利质量</button><button data-page="unlocks">解禁预警</button><button data-page="method">评分口径</button></nav></div></header>
+<header class="hero"><div class="wrap"><div class="heroLine"><div><div class="eyebrow">MULTI-FACTOR VALUATION SCORE</div><h1>行业与个股性价比评分</h1><p>盈利动能 × ROE质量 × 估值分位 × 价格回撤 × 公募拥挤度</p></div><div class="date">数据截面<b>2026-11-13</b>公募持仓截至2026Q3</div></div><nav class="nav"><button class="active" data-page="overview">行业评分</button><button data-page="stocks">个股评分</button><button data-page="crowding">公募拥挤度</button><button data-page="dividends">红利资产</button><button data-page="unlocks">解禁预警</button><button data-page="method">评分口径</button></nav></div></header>
 <main class="wrap"><section id="overview" class="page active"><div class="cards" id="summaryCards"></div>
 <div class="weights"><div class="weight"><b>盈利动能</b><span>30%</span><p>27E水平20% / 同比增速15% / 周度上修65%＋连续上修加分</p></div><div class="weight"><b>ROE质量</b><span>5%</span><p>27E水平 / 同比变化 / 周度上修＋连续上修加分</p></div><div class="weight"><b>估值性价比</b><span>35%</span><p>个股：估值分位与利润消化等权</p></div><div class="weight"><b>价格回撤</b><span>5%</span><p>近1月 / 年初以来 / 924以来等权</p></div><div class="weight"><b>公募拥挤度</b><span>25%</span><p>2026Q3 · 越拥挤安全分越低</p></div></div>
 <div class="grid2"><div class="panel"><div class="panelHead"><div><h2>一级行业：估值分位与综合评分</h2><div class="sub">横轴越左越便宜 · 纵轴越上综合分越高 · 行业估值仅采用历史分位</div></div><button class="btn" id="toggleLabels">显示全部标签</button></div><div id="industryScatter" class="scatter"></div><div class="chartFoot"><div class="chartKey"><span><i style="background:#3467c9"></i>重点行业</span><span><i style="background:#a6b0bf"></i>其他行业</span></div><span>点击圆点查看行业详情</span></div></div><div class="panel"><h2>综合评分领先行业</h2><div class="sub">不再以各指标前1/3取交集</div><div id="topIndustries" class="topList" style="margin-top:12px"></div></div></div>
 <div class="panel"><div class="panelHead"><div><h2>行业评分明细</h2><div class="sub">点击行业名称查看详细分解；“成分股”按钮跳转个股｜综合分 = 30%盈利 + 10%ROE + 30%估值 + 10%价格 + 20%公募拥挤度安全分</div></div></div><div class="toolbar"><select id="indLevel"><option value="L1">申万一级</option><option value="L2">申万二级</option></select><select id="indMin"><option value="0">全部评分</option><option value="60">综合分≥60</option><option value="70">综合分≥70</option><option value="80">综合分≥80</option></select><input id="indSearch" placeholder="搜索行业 / 代码"><button class="btn" id="exportInd">导出行业CSV</button></div><div class="scoreLegend"><span><i style="background:#14715e"></i>优势 / 向上</span><span><i style="background:#3467a9"></i>中性 / 平稳</span><span><i style="background:#9a6713"></i>偏弱 / 关注</span><span><i style="background:#b84a52"></i>向下 / 高风险</span><span>拥挤度与估值分位按风险反向着色</span></div><div class="tableWrap"><table><thead><tr><th>排名</th><th>行业</th><th>综合分</th><th>价格</th><th>盈利</th><th>ROE</th><th>估值分</th><th>公募拥挤</th><th>估值法/分位</th><th>ROE周期</th><th>高分股</th><th>风险</th></tr></thead><tbody id="indBody"></tbody></table></div></div></section>
 <section id="stocks" class="page"><div class="panel"><div class="panelHead"><div><h2>个股综合评分</h2><div class="sub">按估值状态与利润消化分类；默认显示低估值A股，红利质量仅在独立页签判断</div></div><span class="tag blue" id="resultCount"></span></div><div class="toolbar"><input id="stockSearch" placeholder="搜索代码 / 简称 / 行业"><select id="stockIndustry"><option value="">全部一级行业</option></select><select id="stockMode"><option value="low">低估值（分位＜50%）</option><option value="all">全部A股</option><option value="mid">估值中性（50%—80%）</option><option value="high">高估值（分位≥80%）</option><option value="digest">远期利润透支（28E及以后）</option></select><select id="marketCapFilter"><option value="">全部市值</option><option value="small">0—100亿</option><option value="mid">100—500亿</option><option value="large">500亿以上</option></select><select id="listingFilter"><option value="">上市满一年（默认）</option><option value="all">包含上市未满一年</option><option value="recent">仅上市未满一年</option></select><select id="stockMin"><option value="0">全部评分</option><option value="60">综合分≥60</option><option value="70">综合分≥70</option><option value="80">综合分≥80</option></select><select id="cycleFilter"><option value="">全部ROE周期</option><option>底部反弹</option><option>持续向上</option><option>修复向上</option><option>高位平稳</option><option>低位平稳</option><option>拐头向下</option></select><button class="btn primary" id="exportStocks">导出CSV</button></div><div class="tableWrap"><table><thead><tr><th>排名</th><th>股票</th><th>行业</th><th>综合分</th><th>价格</th><th>盈利</th><th>ROE</th><th>估值分位</th><th>利润消化</th><th>27E PE</th><th>公募拥挤</th><th>解禁</th></tr></thead><tbody id="stockBody"></tbody></table></div><div class="pager"><button class="btn" id="prevPage">上一页</button><span class="sub" id="pageLabel"></span><button class="btn" id="nextPage">下一页</button></div></div></section>
 <section id="crowding" class="page"><div class="cards" style="grid-template-columns:repeat(4,1fr)" id="crowdCards"></div><div class="panel"><div class="panelHead"><div><h2>行业公募持仓拥挤度</h2><div class="sub">行业拥挤度＝50%超配比例＋50%配置比例2010年以来历史分位｜超配在同层级内线性缩放0—100；历史分位取自身2010Q1以来季度序列（配置口径，数据库同源）</div></div></div><div class="toolbar"><select id="crowdIndLevel"><option value="L1">申万一级</option><option value="L2">申万二级</option></select><input id="crowdIndSearch" placeholder="搜索行业"></div><div class="tableWrap" style="max-height:520px"><table><thead><tr><th>行业</th><th>公募配置占比</th><th>流通市值占比</th><th>超配(pct)</th><th>超配环比<br>26Q3-26Q2</th><th>超配得分<br>权重50%</th><th>历史分位<br>2010以来·权重50%</th><th>当前仓位*<br>周报</th><th>930以来主动*<br>pct</th><th>拥挤度</th><th>风险</th><th>安全得分</th></tr></thead><tbody id="crowdIndBody"></tbody></table></div></div><div class="panel"><div class="panelHead"><div><h2>个股公募持仓拥挤度</h2><div class="sub">拥挤度＝40%超配比例分位＋20%持有基金数分位＋20%公募配置占比分位＋20%占流通股比例分位；数值越高越拥挤</div></div><span class="tag blue" id="crowdStockCount"></span></div><div class="toolbar"><input id="crowdStockSearch" placeholder="搜索代码 / 简称 / 行业"><select id="crowdRiskFilter"><option value="">全部风险等级</option><option>极高</option><option>高</option><option>中</option><option>低</option><option>极低</option></select></div><div class="tableWrap" style="max-height:620px"><table><thead><tr><th>股票</th><th>行业</th><th>持有基金数</th><th>公募配置占比</th><th>流通市值占比</th><th>超配(pct)</th><th>超配环比<br>26Q3-26Q2</th><th>占流通股<br>权重20%</th><th>拥挤度</th><th>风险</th></tr></thead><tbody id="crowdStockBody"></tbody></table></div></div><div class="note">口径：2026Q3主动偏股基金A股前十大重仓，截至2026-09-30；2026Q2仅用于同口径环比，不与26H1全持仓直接比较。个股配置占比按Q3重仓股合计归一为100%，流通市值由持股总市值÷持股占流通股比反推；行业配置与超配直接取数据库的一级、二级行业汇总。超配＝公募A股配置占比－流通市值占比，正值为超配、负值为低配。个股四项指标分别在全部A股中转为0—100分位，按超配40%/持有基金数20%/公募配置占比20%/占流通股比例20%加权；行业按超配比例50%和配置比例2010年以来历史分位50%加权，超配在同层级内线性缩放为0—100分（最高100、最低0），一级、二级分别计算；历史分位为该行业自身2010Q1以来配置比例序列的分位（配置口径代理超配）。未被重仓持有的股票，四项分位均计0。两份来源的持仓总额与行业汇总略有差异，因此不跨来源混算；季报披露有滞后，不代表当前实时持仓。</div></section>
-<section id="dividends" class="page"><div class="panel"><h2>红利质量</h2><div class="sub">规则不变：27E股息率＞3.5% + 分红稳定 + 27E OCF/DPS≥200%；筛选要求：总市值≥100亿元</div><div class="cards" style="grid-template-columns:repeat(4,1fr);max-width:900px" id="divCards"></div><div class="toolbar"><select id="divFilter"><option value="all">全部红利约束股</option><option value="pass">质量通过</option><option value="fail">未通过</option><option value="missing">OCF待补</option></select></div><div class="tableWrap"><table><thead><tr><th>简称</th><th>行业</th><th>静态股息率</th><th>27E股息率</th><th>分红</th><th>OCF/DPS</th><th>结论</th></tr></thead><tbody id="divBody"></tbody></table></div></div></section>
+<section id="dividends" class="page"><div class="panel"><h2>红利资产筛选（估值走廊框架）</h2><div class="sub">初筛＝ROE27E≥7%＋ROE变异系数≤全A 30%分位＋静态/27E股息率均≥2%＋分红稳定＋OCF/DPS≥150%＋市值≥100亿；定价＝三阶段DDM理论PB（贴现率7%），走廊[0.8,1.2]×理论PB；应有股息率=3.1%+0.3×(ROE标准差-1.1pp)。详见《红利资产筛选策略说明》</div><div class="cards" style="grid-template-columns:repeat(5,1fr);max-width:1100px" id="divCards"></div><div class="toolbar"><select id="divFilter"><option value="all">全部价值资产池</option><option value="low">低于走廊下沿（低估）</option><option value="in">走廊内</option><option value="high">高于走廊上沿</option><option value="rh">红马增强标签</option></select><button class="btn" id="exportDiv">导出CSV</button></div><div class="tableWrap"><table><thead><tr><th>排名</th><th>股票</th><th>行业</th><th>红利综合分</th><th>估值折价</th><th>股息边际</th><th>27PB/理论PB</th><th>走廊</th><th>理论PB</th><th>27E股息率</th><th>应有股息率</th><th>超额(pct)</th><th>ROE27E</th><th>ROE波动CV</th><th>分红率</th><th>OCF/DPS</th><th>标签</th></tr></thead><tbody id="divBody"></tbody></table></div></div></section>
 <section id="unlocks" class="page"><div class="panel"><h2>解禁预警</h2><div class="sub">按解禁日期由近至远｜2026-11-13至2027-01-02，解禁比例＞10%｜金额按2026-11-13股价估算，仅预警、不影响评分</div><div class="unlockGrid" id="unlockList" style="margin-top:14px"></div></div></section>
-<section id="method" class="page"><div class="note">“下半年以来”源表公式实际从2026/1/1起算，因此页面统一称为“年初以来”。所有分均转为0—100，缺失的盈利/ROE子项按中性50处理。</div><div class="rules"><div class="rule"><b>价格回撤分 · 5%</b><p>近1月、年初以来、924以来三个区间等权。回测显示行业截面动量/反转无显著前瞻信号（297周IC≈0），故权重由10%降至5%，仅作辅助。仅负收益参与跌幅横截面分位，跌得越深分越高；非负收益该区间计0分，避免把上涨较少当成超跌。</p></div><div class="rule"><b>盈利动能分 · 30%</b><p>内部权重：27E EPS在2021—2027E自身序列的位置20%、27E EPS同比增速的横截面分位15%、27E EPS较上周调整幅度的横截面分位65%。回测显示"当期增速最高"是次年反指（2021-2025五年IC全负），增速子项由30%降至15%，边际上修（变化而非水平）升为65%。源表为周度EPS序列（最新/上周/上上周/上上上周），周度上修取27E最新值较上周的变化。连续上修加分：尾部连续≥2次周度上修盈利分+3分、连续3次+5分（上限100分），奖励上修趋势的持续性。</p></div><div class="rule"><b>ROE质量分 · 5%</b><p>三等分：27E ROE绝对水平、27E－26E ROE变化、27E ROE较上周修正。ROE同样适用连续上修加分：尾部连续≥2次周度上修+3分、连续3次+5分（上限100分）。ROE周期标签仍结合2021—2027E路径判断。回测显示ROE水平与变化近5年无稳定正向贡献，权重由10%降至5%。</p></div><div class="rule"><b>行业估值分 · 35%</b><p>行业估值分＝100－PE/PB历史分位，不再使用估值匹配度。历史分位越低，估值得分越高；仅银行、非银金融、房地产用PB，其余所有行业及个股均用PE。行业不计算个股利润消化指标。</p></div><div class="rule"><b>个股估值与利润消化 · 35%</b><p>估值分位＜50%仍是默认硬筛选。个股估值分=50%便宜程度（100－估值历史分位）+50%利润消化分，两者等权；26E/27E/28E首次回到30x以下分别计100/70/30分，28E仍未消化计0分。到28E才消化给予较大惩罚，28E仍未消化给予更大惩罚。源表仅有年度EPS，消化时间只标到年份，不推算月份。</p></div><div class="rule"><b>公募持仓拥挤度 · 25%</b><p>报告期2026Q3，Q2仅用于同口径环比，不与26H1全持仓直接比较。个股拥挤度=40%超配比例的全A横截面分位+20%持有基金数的全A横截面分位+20%公募A股配置占比的全A横截面分位+20%占流通股比例的全A横截面分位。超配是核心，持有广度、绝对配置和流通盘持仓占比辅助确认。公募超配＝A股配置占比（A股合计归一100%）－同期流通市值占比。行业拥挤度=50%超配比例+50%配置比例2010年以来历史分位。超配（=公募A股配置占比－流通市值占比）在同层级行业内做0—100线性缩放，保留原始差距；历史分位取自身配置比例2010Q1以来的季度序列（数据库同源口径；严格超配历史因缺流通市值序列，以配置分位为代理）。安全得分=100－拥挤度，越拥挤得分越低。带*列为仓位周报动态（来源：公募基金行业仓位周报2026-11-13，占已披露A股前十大重仓股市值比例，主动变化为模型估算、仅一级行业），仅展示不参与打分。未持有个股的四项分位均计0。</p></div><div class="rule"><b>上市历史要求</b><p>默认剔除截至2026-11-13上市未满一年的股票，即上市日期晚于2025-11-13的标的，避免短历史PE/PB分位被误判为长期低估。上市日期来自同花顺iFinD，清单查询于2026-10-30、经2026-11-17复核新增钶锐锶（2026-11-10上市）、经2026-11-23复核新增皇冠新材（2026-11-03）、森峰激光（2026-11-06）、菊乐股份（2026-11-17）；个股页可通过“包含上市未满一年”或“仅上市未满一年”单独查看，不参与默认高分股和行业高分股统计。</p></div><div class="rule"><b>红利与解禁</b><p>红利质量沿用27E股息率＞3.5%、分红稳定、OCF/DPS≥200%，并要求总市值≥100亿元，仅在红利质量页判断，不参与普通个股分类或高分股统计。解禁仅作独立预警，不进入综合评分。</p></div></div></section><div class="foot">数据源：多维数据比较1113.xlsx · 多维比较（2026-11-13）；重仓持股26Q3.xlsx、重仓持股26Q2.xlsx、主动偏股基金数据库_2026Q3.xlsx（2026Q3/Q2前十大重仓）；同花顺iFinD上市日期（2026-10-30查询、2026-11-17复核）｜评分为相对比较工具，不构成投资建议</div></main>
+<section id="method" class="page"><div class="note">“下半年以来”源表公式实际从2026/1/1起算，因此页面统一称为“年初以来”。所有分均转为0—100，缺失的盈利/ROE子项按中性50处理。</div><div class="rules"><div class="rule"><b>价格回撤分 · 5%</b><p>近1月、年初以来、924以来三个区间等权。回测显示行业截面动量/反转无显著前瞻信号（297周IC≈0），故权重由10%降至5%，仅作辅助。仅负收益参与跌幅横截面分位，跌得越深分越高；非负收益该区间计0分，避免把上涨较少当成超跌。</p></div><div class="rule"><b>盈利动能分 · 30%</b><p>内部权重：27E EPS在2021—2027E自身序列的位置20%、27E EPS同比增速的横截面分位15%、27E EPS较上周调整幅度的横截面分位65%。回测显示"当期增速最高"是次年反指（2021-2025五年IC全负），增速子项由30%降至15%，边际上修（变化而非水平）升为65%。源表为周度EPS序列（最新/上周/上上周/上上上周），周度上修取27E最新值较上周的变化。连续上修加分：尾部连续≥2次周度上修盈利分+3分、连续3次+5分（上限100分），奖励上修趋势的持续性。</p></div><div class="rule"><b>ROE质量分 · 5%</b><p>三等分：27E ROE绝对水平、27E－26E ROE变化、27E ROE较上周修正。ROE同样适用连续上修加分：尾部连续≥2次周度上修+3分、连续3次+5分（上限100分）。ROE周期标签仍结合2021—2027E路径判断。回测显示ROE水平与变化近5年无稳定正向贡献，权重由10%降至5%。</p></div><div class="rule"><b>行业估值分 · 35%</b><p>行业估值分＝100－PE/PB历史分位，不再使用估值匹配度。历史分位越低，估值得分越高；仅银行、非银金融、房地产用PB，其余所有行业及个股均用PE。行业不计算个股利润消化指标。</p></div><div class="rule"><b>个股估值与利润消化 · 35%</b><p>估值分位＜50%仍是默认硬筛选。个股估值分=50%便宜程度（100－估值历史分位）+50%利润消化分，两者等权；26E/27E/28E首次回到30x以下分别计100/70/30分，28E仍未消化计0分。到28E才消化给予较大惩罚，28E仍未消化给予更大惩罚。源表仅有年度EPS，消化时间只标到年份，不推算月份。</p></div><div class="rule"><b>公募持仓拥挤度 · 25%</b><p>报告期2026Q3，Q2仅用于同口径环比，不与26H1全持仓直接比较。个股拥挤度=40%超配比例的全A横截面分位+20%持有基金数的全A横截面分位+20%公募A股配置占比的全A横截面分位+20%占流通股比例的全A横截面分位。超配是核心，持有广度、绝对配置和流通盘持仓占比辅助确认。公募超配＝A股配置占比（A股合计归一100%）－同期流通市值占比。行业拥挤度=50%超配比例+50%配置比例2010年以来历史分位。超配（=公募A股配置占比－流通市值占比）在同层级行业内做0—100线性缩放，保留原始差距；历史分位取自身配置比例2010Q1以来的季度序列（数据库同源口径；严格超配历史因缺流通市值序列，以配置分位为代理）。安全得分=100－拥挤度，越拥挤得分越低。带*列为仓位周报动态（来源：公募基金行业仓位周报2026-11-13，占已披露A股前十大重仓股市值比例，主动变化为模型估算、仅一级行业），仅展示不参与打分。未持有个股的四项分位均计0。</p></div><div class="rule"><b>上市历史要求</b><p>默认剔除截至2026-11-13上市未满一年的股票，即上市日期晚于2025-11-13的标的，避免短历史PE/PB分位被误判为长期低估。上市日期来自同花顺iFinD，清单查询于2026-10-30、经2026-11-17复核新增钶锐锶（2026-11-10上市）、经2026-11-23复核新增皇冠新材（2026-11-03）、森峰激光（2026-11-06）、菊乐股份（2026-11-17）；个股页可通过“包含上市未满一年”或“仅上市未满一年”单独查看，不参与默认高分股和行业高分股统计。</p></div><div class="rule"><b>红利资产筛选 · 估值走廊框架</b><p>采用券商策略估值走廊研究框架，辅以"红马"增强标签。初筛门槛：27E ROE≥7%、ROE变异系数（2021—2027E）≤全A个股30%分位、静态股息率与27E股息率均≥2%、分红稳定、27E OCF/DPS≥150%，另要求总市值≥100亿元。定价采用三阶段DDM：一阶段5年（ROE=27E、分红率=近三年均值，g=ROE×留存率、上限6.5%）、二阶段10年（ROE每年衰减2pct、分红率+10pct、上限0.9、g上限4%）、三阶段永续（分红率钳制0.7—0.95、g=2%），贴现率7%；g上限参照框架案例库99只资产（g1最大6.4%），防止高留存成长股被无限外推。理论PB=理论PE×ROE，估值走廊=[0.8,1.2]×理论PB，低于下沿为低估、高于上沿为溢价。盈利波动补偿：应有股息率=3.1%+0.3×(ROE标准差-1.1pp)，水电为基准。综合分=估值折价35%+股息安全边际25%+盈利质量稳定20%+分红可持续20%（均为池内横截面分位）。红马增强标签：26/27/28E EPS同比均＞-5%（成长护航）且ROE变异系数≤全A中位（盈利稳态）。不参与普通个股分类或高分股统计。解禁仅作独立预警，不进入综合评分。</p></div></div></section><div class="foot">数据源：多维数据比较1113.xlsx · 多维比较（2026-11-13）；重仓持股26Q3.xlsx、重仓持股26Q2.xlsx、主动偏股基金数据库_2026Q3.xlsx（2026Q3/Q2前十大重仓）；同花顺iFinD上市日期（2026-10-30查询、2026-11-17复核）｜评分为相对比较工具，不构成投资建议</div></main>
 <div class="overlay" id="overlay"></div><aside class="drawer" id="drawer"></aside><script id="modelData" type="application/json">__DATA__</script><script>
 const DATA=JSON.parse(document.getElementById('modelData').textContent),SUMMARY=__SUMMARY__,$=id=>document.getElementById(id);
 const fmt=(v,d=1)=>v===null||v===undefined||Number.isNaN(v)?'—':Number(v).toFixed(d),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -491,7 +621,7 @@ const valuationPill=(method,pct)=>{const n=Number(pct),tone=pct===null?'toneMid'
 const signed=(v,d=2)=>v===null||v===undefined||Number.isNaN(v)?'—':(v>0?'+':'')+fmt(v,d);
 let stockPage=1,pageSize=60,currentStocks=[],showAllLabels=false;
 function init(){
- $('summaryCards').innerHTML=[['A股样本',SUMMARY.stocks,'剔除上市未满一年 '+SUMMARY.recentIPOs+' 只'],['一级行业',SUMMARY.l1,'二级 '+SUMMARY.l2],['及格行业',SUMMARY.highIndustries,'一级综合分≥60'],['低估值高分股',SUMMARY.highStocks,'综合分≥70且估值分位＜50%'],['红利通过',SUMMARY.divPass,'质量规则不变＋市值≥100亿'],['解禁预警',SUMMARY.unlock,'独立风险标注']].map(x=>`<div class="card"><div class="label">${x[0]}</div><div class="metric">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join('');
+ $('summaryCards').innerHTML=[['A股样本',SUMMARY.stocks,'剔除上市未满一年 '+SUMMARY.recentIPOs+' 只'],['一级行业',SUMMARY.l1,'二级 '+SUMMARY.l2],['及格行业',SUMMARY.highIndustries,'一级综合分≥60'],['低估值高分股',SUMMARY.highStocks,'综合分≥70且估值分位＜50%'],['红利价值资产池',DATA.divStrategy.poolCount,'估值走廊框架·低估'+DATA.divStrategy.belowFloor+'只'],['解禁预警',SUMMARY.unlock,'独立风险标注']].map(x=>`<div class="card"><div class="label">${x[0]}</div><div class="metric">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join('');
  $('stockIndustry').innerHTML+=[...new Set(DATA.stocks.map(x=>x.industry))].sort().map(x=>`<option>${esc(x)}</option>`).join('');
  const l1=DATA.industries.filter(x=>x.level==='L1');renderScatter(l1);renderTop(l1);renderIndustries();renderStocks();renderCrowding();renderRisks();
  document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button,.page').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.page).classList.add('active')});
@@ -525,7 +655,7 @@ function renderCrowding(){
  const q=$('crowdStockSearch').value.trim().toLowerCase(),risk=$('crowdRiskFilter').value,rows=DATA.stocks.filter(x=>!x.recentIPO&&(!risk||x.crowdRisk===risk)&&(!q||(x.code+x.name+x.industry+x.subindustry).toLowerCase().includes(q))).sort((a,b)=>b.crowdRaw-a.crowdRaw);
  const dist=['极高','高','中','低','极低'].map(k=>k+(rows.filter(x=>x.crowdRisk===k).length)).join(' / ');$('crowdStockCount').textContent=rows.length+' 只｜'+dist;$('crowdStockBody').innerHTML=rows.map(x=>`<tr><td><b class="click" onclick="openStock('${x.code}')">${esc(x.name)}</b><div class="sub">${x.code}</div></td><td>${esc(x.industry)}</td><td>${fmt(x.fundCount,0)}</td><td>${fmt(x.fundWeightA,3)}%</td><td>${fmt(x.marketCapPct,3)}%</td><td class="${x.overweight>0?'up':'down'}"><b>${signed(x.overweight,3)}</b></td><td class="${x.overweightChange>0?'up':'down'}">${x.hasFundHolding&&!x.hasPrevFundHolding?'新进':signed(x.overweightChange,3)}</td><td>${fmt(x.freeFloat,2)}%</td><td><b>${fmt(x.crowdRaw)}</b></td><td>${tag(x.crowdRisk,x.crowdRaw>=60?'amber':'blue')}</td></tr>`).join('')||'<tr><td colspan="10" class="empty">无匹配股票</td></tr>';
 }
-function renderRisks(){const div=DATA.stocks.filter(x=>x.divTrigger&&!x.recentIPO&&(x.marketCap||0)>=100),passed=div.filter(x=>x.divPass),missing=div.filter(x=>!x.divPass&&x.coveragePass===null&&x.yieldPass),low=div.filter(x=>!x.yieldPass);$('divCards').innerHTML=[['红利约束股',div.length],['质量通过',passed.length],['27E股息率≤3.5%',low.length],['OCF待补',missing.length]].map(x=>`<div class="card"><div class="label">${x[0]}</div><div class="metric">${x[1]}</div></div>`).join('');let f=$('divFilter').value,rows=div.filter(x=>f==='all'||f==='pass'&&x.divPass||f==='fail'&&!x.divPass&&!(x.coveragePass===null&&x.yieldPass)||f==='missing'&&!x.divPass&&x.coveragePass===null&&x.yieldPass).sort((a,b)=>(b.yield27||0)-(a.yield27||0)).slice(0,250);$('divBody').innerHTML=rows.map(x=>`<tr><td><b class="click" onclick="openStock('${x.code}')">${esc(x.name)}</b></td><td>${esc(x.industry)}</td><td>${fmt(x.staticYield,2)}%</td><td class="${x.yieldPass?'up':'down'}"><b>${fmt(x.yield27,2)}%</b></td><td>${tag(x.stable||'待补',x.stablePass?'green':'amber')}</td><td>${x.coveragePass===null?'—':fmt(x.coverage,0)+'%'}</td><td>${tag(x.divStatus,x.divPass?'green':'amber')}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">无匹配股票</td></tr>';$('unlockList').innerHTML=DATA.stocks.filter(x=>x.unlockAlert&&!x.recentIPO).sort((a,b)=>a.unlockDate.localeCompare(b.unlockDate)||b.unlockRatio-a.unlockRatio).map(x=>`<div class="unlockItem"><b class="click" onclick="openStock('${x.code}')">${esc(x.name)}</b><span style="float:right">${tag(fmt(x.unlockRatio,2)+'%','amber')}</span><div class="sub">${x.code} · ${esc(x.industry)}</div><div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;margin-top:8px"><b>${x.unlockDate}</b><span class="sub">解禁金额 <b style="color:#a66716">${fmt(x.unlockAmount,1)}亿元</b></span></div></div>`).join('')}
+function renderRisks(){const DS=DATA.divStrategy,list=DS.list||[];$('divCards').innerHTML=[['价值资产池',DS.poolCount,'六道门槛初筛'],['低于走廊下沿',DS.belowFloor,'PB＜0.8×理论PB'],['走廊内',DS.inCorridor,'0.8—1.2×理论PB'],['高于走廊上沿',DS.aboveCap,'PB＞1.2×理论PB'],['红马增强',DS.redHorseN,'成长护航＋盈利稳态']].map(x=>`<div class="card"><div class="label">${x[0]}</div><div class="metric">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join('');const f=$('divFilter').value,rows=list.filter(x=>f==='all'||f==='low'&&x.corridor==='低于下沿'||f==='in'&&x.corridor==='走廊内'||f==='high'&&x.corridor==='高于上沿'||f==='rh'&&x.redHorse);const corrTag=c=>c==='低于下沿'?tag(c,'green'):c==='高于上沿'?tag(c,'red'):tag(c,'blue');$('divBody').innerHTML=rows.map(x=>`<tr><td>${x.rank}</td><td><b class="click" onclick="openStock('${x.code}')">${esc(x.name)}</b></td><td>${esc(x.industry)}</td><td><b class="${x.score>=70?'up':''}">${fmt(x.score,1)}</b></td><td>${fmt(x.valScore,0)}</td><td>${fmt(x.yieldScore,0)}</td><td>${fmt(x.ratio,2)}</td><td>${corrTag(x.corridor)}</td><td>${fmt(x.theoryPB,2)}</td><td class="up"><b>${fmt(x.yield27,2)}%</b></td><td>${fmt(x.reqYield,2)}%</td><td class="${x.excessYield>=0?'up':'down'}">${signed(x.excessYield)}</td><td>${fmt(x.roe27,1)}%</td><td>${fmt(x.roeCV,2)}</td><td>${fmt(x.payout,0)}%</td><td>${x.coverage!=null?fmt(x.coverage,0)+'%':'—'}</td><td>${x.redHorse?tag('红马','green'):x.growthTag?tag('成长护航','amber'):''}</td></tr>`).join('')||'<tr><td colspan="17" class="empty">无匹配股票</td></tr>';$('exportDiv').onclick=()=>csvDownload('红利资产池_20261120.csv',[['排名','代码','简称','行业','红利综合分','估值折价分','股息边际分','盈利质量分','分红可持续分','27PB/理论PB','走廊位置','理论PE','理论PB','27PB','27E股息率%','应有股息率%','超额pct','ROE27E%','ROE波动CV','ROE标准差','平均分红率%','OCF/DPS%','红马标签'],...rows.map(x=>[x.rank,x.code,x.name,x.industry,fmt(x.score,1),fmt(x.valScore,0),fmt(x.yieldScore,0),fmt(x.qualityScore,0),fmt(x.sustainScore,0),fmt(x.ratio,2),x.corridor,fmt(x.theoryPE,1),fmt(x.theoryPB,2),fmt(x.pb27,2),fmt(x.yield27,2),fmt(x.reqYield,2),signed(x.excessYield),fmt(x.roe27,1),fmt(x.roeCV,2),fmt(x.roeSD,2),fmt(x.payout,0),x.coverage!=null?fmt(x.coverage,0):'',x.redHorse?'是':'否'])]);$('unlockList').innerHTML=DATA.stocks.filter(x=>x.unlockAlert&&!x.recentIPO).sort((a,b)=>a.unlockDate.localeCompare(b.unlockDate)||b.unlockRatio-a.unlockRatio).map(x=>`<div class="unlockItem"><b class="click" onclick="openStock('${x.code}')">${esc(x.name)}</b><span style="float:right">${tag(fmt(x.unlockRatio,2)+'%','amber')}</span><div class="sub">${x.code} · ${esc(x.industry)}</div><div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;margin-top:8px"><b>${x.unlockDate}</b><span class="sub">解禁金额 <b style="color:#a66716">${fmt(x.unlockAmount,1)}亿元</b></span></div></div>`).join('')}
 function openIndustryStocks(name){closeDrawer();document.querySelector('[data-page="stocks"]').click();let isL1=DATA.stocks.some(s=>s.industry===name);$('stockIndustry').value=isL1?name:'';$('stockSearch').value=isL1?'':name;$('stockMode').value='all';$('listingFilter').value='';stockPage=1;renderStocks()}
 function openIndustry(name){
  const x=DATA.industries.find(d=>d.name===name);if(!x)return;

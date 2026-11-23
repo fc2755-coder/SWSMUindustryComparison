@@ -1,0 +1,113 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>红利资产筛选策略说明 · 估值走廊框架</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2733;--dim:#748094;--line:#e6e9ee;--blue:#2563eb;--green:#0a8f5b;--red:#c24545;--amber:#a66716}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:15px/1.75 "Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--ink);padding:28px 16px}
+.wrap{max-width:1060px;margin:0 auto}
+.eyebrow{font-size:11px;letter-spacing:2px;color:var(--blue);font-weight:700}
+h1{font-size:26px;margin:6px 0 2px}
+.sub{color:var(--dim);font-size:13px;margin-bottom:22px}
+h2{font-size:18px;margin:30px 0 10px;padding-left:10px;border-left:4px solid var(--blue)}
+h3{font-size:15px;margin:16px 0 6px}
+p{margin:8px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:12px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{background:#eef2f7;font-size:12px;position:sticky;top:0}
+.num{font-variant-numeric:tabular-nums}
+.strong{font-weight:700;color:var(--blue)}
+.pos{color:var(--green)} .neg{color:var(--red)}
+.dim{color:var(--dim);font-size:12px}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px}
+.pill.g{background:#e3f5ec;color:var(--green)} .pill.r{background:#fbe9e9;color:var(--red)} .pill.b{background:#e8effc;color:var(--blue)}
+.formula{background:#f0f4fa;border-radius:8px;padding:10px 14px;font-family:Consolas,monospace;font-size:13px;margin:8px 0;overflow-x:auto}
+.kpi{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:12px 0}
+.kpi div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+.kpi b{display:block;font-size:24px;color:var(--blue)}
+.kpi span{font-size:12px;color:var(--dim)}
+.warn{background:#fdf6e7;border-left:4px solid var(--amber);padding:12px 16px;border-radius:6px;margin:12px 0;font-size:13px}
+.tblWrap{max-height:640px;overflow:auto}
+</style></head><body><div class="wrap">
+<div class="eyebrow">DIVIDEND STRATEGY · VALUATION CORRIDOR</div>
+<h1>红利资产筛选策略说明</h1>
+<div class="sub">框架来源：券商策略团队估值走廊研究框架及其配套自动更新底稿（2026-11）；增强参照："红马"红利选股思路（成长护航＋盈利稳态）｜数据截面：2026-11-20｜本页独立于主模型，策略已同步接入主模型"红利资产"页签</div>
+
+<h2>一、为什么改：旧规则的问题</h2>
+<div class="card"><p>旧规则只有三道阈值（27E股息率＞3.5%＋分红稳定＋OCF/DPS≥200%），本质是<strong>收益率筛选</strong>，存在三个缺陷：①只回答"股息率高不高"，不回答"这个价格贵不贵"——高股息可能只是股价跌出来的；②不区分盈利波动，用同一条3.5%的线去要求水电和周期股，而两者应要求的股息补偿完全不同；③无估值理论锚，无法回答"红利资产还有多少上行空间"。</p></div>
+
+<h2>二、新框架：三层结构</h2>
+<div class="card">
+<h3>第1层 · 价值资产池初筛（框架口径）</h3>
+<p>六道门槛同时满足：① 27E ROE ≥ 7%；② ROE变异系数（2021—2027E七点序列）≤ 全A个股30%分位（当前阈值 <b>0.299</b>）；③ 静态股息率与27E股息率均 ≥ 2%；④ 源表"分红稳定"=稳定；⑤ 27E OCF/DPS ≥ 150%（较旧规则200%放宽——框架无此门槛，150%仍属1.5倍现金覆盖）；⑥ 总市值 ≥ 100亿元、剔除次新。截面结果：<b>129只</b>。</p>
+<h3>第2层 · 三阶段DDM理论估值（估值走廊）</h3>
+<div class="formula">阶段一（5年）：ROE=27E ROE，分红率d=近三年均值（上限90%），g=ROE×(1−d)，g上限6.5%<br>阶段二（10年）：ROE衰减2pct，分红率+10pct（上限90%），g上限4%<br>阶段三（永续）：分红率钳制70%—95%，g=2%；贴现率 r=7%（10Y国债~1.8%＋沪深300风险溢价~5.4%，与市场交易隐含一致）<br>理论PE = Σ DPS_t/(1+r)^t ＋ 永续终值；理论PB = 理论PE × ROE₁；估值走廊 = [0.8, 1.2] × 理论PB</div>
+<p class="dim">g上限是本次移植的关键修正：框架案例库99只资产的g1最大仅6.4%，高留存成长股的留存收益不可按DDM无限外推（否则宁德时代这类23% ROE低分红的资产会被推成"理论PB 6.7"的假低估；封顶后回落至4.25）。</p>
+<h3>第3层 · 盈利波动补偿（应有股息率）</h3>
+<div class="formula">应有股息率 = 3.1% + 0.3 × (ROE标准差 − 1.1pp)　（水电为基准）<br>超额股息率 = 27E股息率 − 应有股息率（正=安全边际充足）</div>
+<p class="dim">框架测算：水电ROE标准差1.1pp对应要求股息率3.1%；高速公路（1.5pp）要求升至3.4%；动力煤（5.0pp）要求6.5%。单位盈利波动≈0.3pp股息补偿。</p>
+</div>
+
+<h2>三、综合评分与红马标签</h2>
+<div class="card"><p>红利综合分（0—100）＝<strong>估值折价35%</strong>（当前PB/理论PB越低越高）＋<strong>股息安全边际25%</strong>（超额股息率）＋<strong>盈利质量稳定20%</strong>（ROE水平与变异系数各半）＋<strong>分红可持续20%</strong>（OCF/DPS、三年分红率、覆盖完整性）。各子项为池内横截面分位。</p>
+<p><strong>红马增强标签</strong>：26/27/28E EPS同比均＞−5%（成长护航，防"增速下滑难以通过股息弥补杀估值"）且ROE变异系数≤全A中位0.453（盈利稳态）。当前池内红马 79 只。</p></div>
+
+<h2>四、公式校准验证（对框架底稿复现）</h2>
+<div class="card"><p>用框架底稿中的案例参数直接复算三阶段DDM，验证移植精度：</p>
+<table><tr><th>案例</th><th>参数（ROE/分红率/g，三阶段）</th><th>参考理论PE</th><th>本模型复算</th><th>偏差</th></tr>
+<tr><td>新华文轩</td><td>9%/45%/4.95% ｜ 7%/55%/3.15% ｜ 5%/70%/2%</td><td class="num">15.21</td><td class="num">14.81（r=7%）/ 15.16（r=6.9%）</td><td class="num">&lt;0.4%</td></tr>
+<tr><td>吉比特</td><td>25%/80%/4% ｜ 23%/90%/2.3% ｜ 21%/90%/2%</td><td class="num">19.99</td><td class="num">19.51（r=7%）/ 19.92（r=6.9%）</td><td class="num">&lt;0.4%</td></tr></table>
+<p class="dim">结论：年末贴现口径下，取 r≈6.9% 与参考表完全吻合（其表内参数精度与显示值存在细微差异）；本模型统一取 r=7% 保守口径，对案例偏差&lt;2.7%，不影响排序。</p>
+<p>中证红利指数对照（框架底稿2026-11-20）：理论PB 0.851 vs 实际PB 0.923，溢价+8.4%，理论年化回报6.3%——<strong>当前红利资产整体处于走廊上沿附近，指数层面性价比有限，选股层面找折价个体是主要alpha来源</strong>。</p></div>
+
+<h2>五、新旧规则对照</h2>
+<div class="card"><table>
+<tr><th>维度</th><th>旧规则</th><th>新框架</th></tr>
+<tr><td>定位</td><td>收益率筛选（高股息即红利）</td><td>股息回报×估值定价双维（"好价格的好红利"）</td></tr>
+<tr><td>初筛</td><td>股息率＞3.5%＋稳定＋OCF/DPS≥200%</td><td>ROE≥7%＋低波动＋双股息率≥2%＋稳定＋OCF/DPS≥150%＋市值≥100亿</td></tr>
+<tr><td>估值锚</td><td>无</td><td>三阶段DDM理论PB＋走廊[0.8,1.2]</td></tr>
+<tr><td>盈利波动</td><td>不区分</td><td>应有股息率随ROE标准差线性补偿</td></tr>
+<tr><td>产出</td><td>通过/未通过</td><td>综合分0—100＋走廊位置＋超额股息率＋红马标签</td></tr>
+</table></div>
+
+<h2>六、当前选股结果（2026-11-20截面）</h2>
+<div class="kpi"><div><b>129</b><span>价值资产池</span></div><div><b>81</b><span>低于走廊下沿</span></div><div><b>45</b><span>走廊内</span></div><div><b>3</b><span>高于上沿</span></div><div><b>79</b><span>红马增强</span></div></div>
+<div class="grid"><div class="card"><h3>行业分布 Top10</h3><table><tr><td>医药生物</td><td class='num'>14</td></tr>
+<tr><td>汽车</td><td class='num'>13</td></tr>
+<tr><td>交通运输</td><td class='num'>12</td></tr>
+<tr><td>机械设备</td><td class='num'>11</td></tr>
+<tr><td>公用事业</td><td class='num'>8</td></tr>
+<tr><td>轻工制造</td><td class='num'>7</td></tr>
+<tr><td>基础化工</td><td class='num'>6</td></tr>
+<tr><td>电力设备</td><td class='num'>5</td></tr>
+<tr><td>有色金属</td><td class='num'>5</td></tr>
+<tr><td>家用电器</td><td class='num'>5</td></tr></table></div>
+<div class="card"><h3>与框架案例对照</h3><p style="font-size:13px">框架案例库99只资产中，<b>长江电力、中国移动、美的集团、福耀玻璃、青岛啤酒、华润三九、宁沪高速、粤高速A、海澜之家、国电南瑞</b>等10只入池。伊利股份、双汇发展、海天味业等落选，原因是源表"分红稳定"字段判定为不稳定（2025年分红率超100%的超额派息构成跳变）——这是数据口径结论，供参考复核。</p>
+<p style="font-size:13px">进入前二十的宁德时代、紫金矿业等属于"高ROE＋股息抬升"的新红利形态：框架在g封顶后给出的是股息回报视角的定价，不含成长期权价值，配置时应作为红利+周期双属性看待。</p></div></div>
+<h3>Top 20（按红利综合分）</h3>
+<div class="card tblWrap"><table><tr><th>#</th><th>股票</th><th>行业</th><th>综合分</th><th>PB/理论PB</th><th>走廊</th><th>理论PB</th><th>27E股息</th><th>应有</th><th>超额pct</th><th>ROE27E</th><th>CV</th><th>标签</th></tr><tr><td>1</td><td><b>宁德时代</b><span class='dim'> 300750.SZ</span></td><td>电力设备</td><td class='num strong'>86.4</td><td class='num'>0.53</td><td><span class='pill g'>低于下沿</span></td><td class='num'>4.25</td><td class='num'>5.45%</td><td class='num'>3.11%</td><td class='num pos'>+2.34</td><td class='num'>23.3%</td><td class='num'>0.05</td><td>红马</td></tr>
+<tr><td>2</td><td><b>苏美达</b><span class='dim'> 600710.SH</span></td><td>商贸零售</td><td class='num strong'>84.1</td><td class='num'>0.52</td><td><span class='pill g'>低于下沿</span></td><td class='num'>2.77</td><td class='num'>4.66%</td><td class='num'>3.05%</td><td class='num pos'>+1.61</td><td class='num'>16.8%</td><td class='num'>0.06</td><td>—</td></tr>
+<tr><td>3</td><td><b>中创智领</b><span class='dim'> 601717.SH</span></td><td>机械设备</td><td class='num strong'>83.4</td><td class='num'>0.39</td><td><span class='pill g'>低于下沿</span></td><td class='num'>2.59</td><td class='num'>7.30%</td><td class='num'>3.33%</td><td class='num pos'>+3.97</td><td class='num'>14.8%</td><td class='num'>0.12</td><td>—</td></tr>
+<tr><td>4</td><td><b>紫金矿业</b><span class='dim'> 601899.SH</span></td><td>有色金属</td><td class='num strong'>81.6</td><td class='num'>0.44</td><td><span class='pill g'>低于下沿</span></td><td class='num'>4.53</td><td class='num'>4.96%</td><td class='num'>3.94%</td><td class='num pos'>+1.02</td><td class='num'>29.3%</td><td class='num'>0.14</td><td>红马</td></tr>
+<tr><td>5</td><td><b>潍柴动力</b><span class='dim'> 000338.SZ</span></td><td>汽车</td><td class='num strong'>81.5</td><td class='num'>0.46</td><td><span class='pill g'>低于下沿</span></td><td class='num'>3.08</td><td class='num'>6.73%</td><td class='num'>3.62%</td><td class='num pos'>+3.10</td><td class='num'>16.2%</td><td class='num'>0.22</td><td>红马</td></tr>
+<tr><td>6</td><td><b>天山铝业</b><span class='dim'> 002532.SZ</span></td><td>有色金属</td><td class='num strong'>80.3</td><td class='num'>0.31</td><td><span class='pill g'>低于下沿</span></td><td class='num'>3.89</td><td class='num'>8.67%</td><td class='num'>4.33%</td><td class='num pos'>+4.34</td><td class='num'>22.7%</td><td class='num'>0.29</td><td>红马</td></tr>
+<tr><td>7</td><td><b>华域汽车</b><span class='dim'> 600741.SH</span></td><td>汽车</td><td class='num strong'>77.4</td><td class='num'>0.45</td><td><span class='pill g'>低于下沿</span></td><td class='num'>1.57</td><td class='num'>5.29%</td><td class='num'>3.22%</td><td class='num pos'>+2.06</td><td class='num'>10.0%</td><td class='num'>0.13</td><td>—</td></tr>
+<tr><td>8</td><td><b>格力电器</b><span class='dim'> 000651.SZ</span></td><td>家用电器</td><td class='num strong'>76.5</td><td class='num'>0.51</td><td><span class='pill g'>低于下沿</span></td><td class='num'>2.96</td><td class='num'>6.09%</td><td class='num'>3.96%</td><td class='num pos'>+2.13</td><td class='num'>16.2%</td><td class='num'>0.18</td><td>—</td></tr>
+<tr><td>9</td><td><b>川恒股份</b><span class='dim'> 002895.SZ</span></td><td>基础化工</td><td class='num strong'>76.5</td><td class='num'>0.56</td><td><span class='pill g'>低于下沿</span></td><td class='num'>3.67</td><td class='num'>6.98%</td><td class='num'>3.51%</td><td class='num pos'>+3.46</td><td class='num'>18.6%</td><td class='num'>0.15</td><td>红马</td></tr>
+<tr><td>10</td><td><b>仙鹤股份</b><span class='dim'> 603733.SH</span></td><td>轻工制造</td><td class='num strong'>76.5</td><td class='num'>0.47</td><td><span class='pill g'>低于下沿</span></td><td class='num'>2.30</td><td class='num'>5.48%</td><td class='num'>3.47%</td><td class='num pos'>+2.00</td><td class='num'>13.8%</td><td class='num'>0.19</td><td>红马</td></tr>
+<tr><td>11</td><td><b>徐工机械</b><span class='dim'> 000425.SZ</span></td><td>机械设备</td><td class='num strong'>75.5</td><td class='num'>0.47</td><td><span class='pill g'>低于下沿</span></td><td class='num'>2.18</td><td class='num'>5.33%</td><td class='num'>3.42%</td><td class='num pos'>+1.91</td><td class='num'>13.5%</td><td class='num'>0.18</td><td>红马</td></tr>
+<tr><td>12</td><td><b>华润三九</b><span class='dim'> 000999.SZ</span></td><td>医药生物</td><td class='num strong'>73.1</td><td class='num'>0.58</td><td><span class='pill g'>低于下沿</span></td><td class='num'>2.58</td><td class='num'>4.74%</td><td class='num'>3.16%</td><td class='num pos'>+1.59</td><td class='num'>13.9%</td><td class='num'>0.09</td><td>红马</td></tr>
+<tr><td>13</td><td><b>华泰证券</b><span class='dim'> 601688.SH</span></td><td>非银金融</td><td class='num strong'>73.0</td><td class='num'>0.51</td><td><span class='pill g'>低于下沿</span></td><td class='num'>1.49</td><td class='num'>4.16%</td><td class='num'>3.09%</td><td class='num pos'>+1.07</td><td class='num'>10.0%</td><td class='num'>0.12</td><td>红马</td></tr>
+<tr><td>14</td><td><b>江铃汽车</b><span class='dim'> 000550.SZ</span></td><td>汽车</td><td class='num strong'>72.1</td><td class='num'>0.50</td><td><span class='pill g'>低于下沿</span></td><td class='num'>2.02</td><td class='num'>5.08%</td><td class='num'>3.61%</td><td class='num pos'>+1.47</td><td class='num'>12.2%</td><td class='num'>0.25</td><td>红马</td></tr>
+<tr><td>15</td><td><b>新和成</b><span class='dim'> 002001.SZ</span></td><td>基础化工</td><td class='num strong'>71.6</td><td class='num'>0.53</td><td><span class='pill g'>低于下沿</span></td><td class='num'>3.37</td><td class='num'>5.11%</td><td class='num'>3.87%</td><td class='num pos'>+1.24</td><td class='num'>19.8%</td><td class='num'>0.19</td><td>红马</td></tr>
+<tr><td>16</td><td><b>中国化学</b><span class='dim'> 601117.SH</span></td><td>建筑装饰</td><td class='num strong'>71.4</td><td class='num'>0.43</td><td><span class='pill g'>低于下沿</span></td><td class='num'>1.30</td><td class='num'>3.52%</td><td class='num'>2.94%</td><td class='num pos'>+0.58</td><td class='num'>9.4%</td><td class='num'>0.06</td><td>红马</td></tr>
+<tr><td>17</td><td><b>华峰铝业</b><span class='dim'> 601702.SH</span></td><td>有色金属</td><td class='num strong'>70.9</td><td class='num'>0.44</td><td><span class='pill g'>低于下沿</span></td><td class='num'>2.91</td><td class='num'>3.83%</td><td class='num'>3.37%</td><td class='num pos'>+0.46</td><td class='num'>20.4%</td><td class='num'>0.10</td><td>红马</td></tr>
+<tr><td>18</td><td><b>中国海油</b><span class='dim'> 600938.SH</span></td><td>石油石化</td><td class='num strong'>70.7</td><td class='num'>0.54</td><td><span class='pill g'>低于下沿</span></td><td class='num'>2.78</td><td class='num'>4.80%</td><td class='num'>3.80%</td><td class='num pos'>+1.00</td><td class='num'>16.8%</td><td class='num'>0.18</td><td>红马</td></tr>
+<tr><td>19</td><td><b>洪城环境</b><span class='dim'> 600461.SH</span></td><td>环保</td><td class='num strong'>69.8</td><td class='num'>0.61</td><td><span class='pill g'>低于下沿</span></td><td class='num'>1.74</td><td class='num'>4.93%</td><td class='num'>3.22%</td><td class='num pos'>+1.71</td><td class='num'>10.8%</td><td class='num'>0.12</td><td>—</td></tr>
+<tr><td>20</td><td><b>柳工</b><span class='dim'> 000528.SZ</span></td><td>机械设备</td><td class='num strong'>69.0</td><td class='num'>0.49</td><td><span class='pill g'>低于下沿</span></td><td class='num'>1.53</td><td class='num'>5.89%</td><td class='num'>3.35%</td><td class='num pos'>+2.54</td><td class='num'>9.9%</td><td class='num'>0.26</td><td>红马</td></tr></table></div>
+
+<h2>七、局限与风险</h2>
+<div class="warn"><p><strong>① DDM参数敏感性</strong>：理论PB对贴现率与g永续假设高度敏感（r−g差1pct，永续项变动约25%）；r=7%对应当前利率环境，若10Y国债进一步下行至1.0%，全部理论PB中枢上移约15%——这是"红利还有多少空间"的量化答案，但也意味着折溢价排序会随利率漂移。<strong>② 前瞻数据依赖</strong>：ROE27E、股息率27E均为一致预期，预测调整会直接改变池子构成。<strong>③ 框架适用边界</strong>：本框架定价的是"分红为主要回报来源"的稳定价值资产，对周期红利（煤炭/有色）隐含了盈利不再大幅回落的假设，对成长红利（宁德类）给出的是不含期权价值的下限估值。<strong>④ 分红稳定字段</strong>依源表极差口径，2025年超额派息（分红率&gt;100%）的标的被判不稳定，可能误伤真实稳定派息者。<strong>⑤ 本说明与主模型红利页签均为研究工具，不构成投资建议。</strong></p></div>
+<div class="sub" style="margin-top:18px">数据源：多维数据比较1120.xlsx（68列，截面2026-11-20）；外部策略研究底稿《行业&amp;个股估值走廊 自动更新》（2026-11-20）及红利估值专题报告（2026-11）；"红马"选股框架公开摘要｜生成：行业比较与个股筛选模型 build_scoring_model.py</div>
+</div></body></html>

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="docx-page-size" content="A4">
+<title>回测调整因子权重——长短因子协作与行业配置建议</title>
+<style>
+:root {
+  --fs-cover-title: 26pt;
+  --fs-h1: 15pt;
+  --fs-h2: 13pt;
+  --fs-body: 12pt;
+  --fs-small: 10.5pt;
+  --ff-heading: "黑体", "SimHei", sans-serif;
+  --ff-body: "宋体", "SimSun", serif;
+  --lh-body: 1.7;
+  --fw-bold: 700;
+  --color-primary: #1A4E8A;
+  --color-text: #1F1F1F;
+  --color-muted: #5F6B7A;
+  --color-border: #D8DEE6;
+  --color-bg: #F4F7FA;
+  --color-callout-bg: #EEF4FB;
+  --color-accent: #B0762A;
+  --spacing-paragraph: 0.7em;
+  --spacing-section: 1.8em;
+  --page-content-width: 15.6cm;
+  --margin-page: 2.4cm;
+}
+@page {
+  @bottom-center { content: counter(page); }
+}
+@page cover {
+  @bottom-center { content: none; }
+}
+section[role="cover"] { page: cover; }
+body {
+  font-family: var(--ff-body);
+  font-size: var(--fs-body);
+  color: var(--color-text);
+  line-height: var(--lh-body);
+  max-width: var(--page-content-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+p { font-size: var(--fs-body); text-align: justify; text-indent: 2em; margin: 0 0 var(--spacing-paragraph) 0; }
+h1 {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-bold);
+  color: var(--color-primary);
+  text-align: left;
+  margin: var(--spacing-section) 0 var(--spacing-paragraph) 0;
+}
+h2 {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-bold);
+  color: var(--color-text);
+  text-align: left;
+  margin: var(--spacing-paragraph) 0 var(--spacing-paragraph) 0;
+}
+strong { font-weight: var(--fw-bold); }
+.speech-note {
+  font-size: var(--fs-small);
+  color: var(--color-muted);
+  text-align: justify;
+  text-indent: 0;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-bg);
+  padding: 8px 12px;
+  margin: 0 0 var(--spacing-section) 0;
+}
+.speech-note p { font-size: var(--fs-small); color: var(--color-muted); text-indent: 0; text-align: justify; margin: 0; }
+.cover-title {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-cover-title);
+  font-weight: var(--fw-bold);
+  color: var(--color-primary);
+  text-align: center;
+  margin: 3.2cm 0 0.6cm 0;
+  line-height: 1.4;
+}
+.cover-subtitle {
+  font-family: var(--ff-body);
+  font-size: var(--fs-h2);
+  color: var(--color-muted);
+  text-align: center;
+  text-indent: 0;
+  margin: 0 0 1.2cm 0;
+}
+.cover-meta {
+  font-family: var(--ff-body);
+  font-size: var(--fs-body);
+  color: var(--color-muted);
+  text-align: center;
+  text-indent: 0;
+  margin: 0.35cm 0;
+}
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--spacing-paragraph) 0 var(--spacing-section) 0;
+}
+table.data-table caption {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-bold);
+  color: var(--color-muted);
+  text-align: center;
+  caption-side: top;
+  padding-bottom: 6px;
+}
+table.data-table th {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-bold);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  padding: 6px 8px;
+  text-align: center;
+}
+table.data-table td {
+  font-size: var(--fs-small);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 6px 8px;
+  text-align: center;
+}
+table.data-table td.left { text-align: left; }
+.source-note {
+  font-size: var(--fs-small);
+  color: var(--color-muted);
+  text-align: left;
+  text-indent: 0;
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
+  margin-top: var(--spacing-section);
+}
+</style>
+</head>
+
+<section role="cover">
+  <div class="cover-title">红利资产怎么选<br>从"股息率筛选"到"估值走廊定价"</div>
+  <p class="cover-subtitle">——红利资产筛选策略升级汇报——</p>
+  <p class="cover-meta">行业比较与个股筛选模型 · 红利模块专项</p>
+  <p class="cover-meta">2026年11月24日</p>
+</section>
+
+<div class="speech-note">
+<p>【口播提示】全场约12分钟。三句核心：第一，旧红利规则只看股息率高不高，看不出价格贵不贵，我们把它升级成"股息回报×估值定价"的双维框架；第二，红利得分由四块组成——估值折价35%、股息安全边际25%、盈利质量20%、分红可持续20%，每一块都有明确的经济学含义；第三，当前截面129只入池、81只低于理论估值下沿，指数层面红利整体已不便宜，超额收益要靠选个股。</p>
+</div>
+
+<h1>一、为什么要改：旧规则答不了领导最关心的问题</h1>
+<p>各位领导，今天汇报红利选股策略的升级。旧规则是三道阈值：27年预期股息率大于3.5%、分红稳定、经营现金流对分红覆盖两倍以上，再要求市值100亿以上。这套规则本质上是<strong>收益率筛选</strong>——把股息率高的挑出来。它能回答"谁的股息率高"，但答不了三个更关键的问题。</p>
+<p>第一，<strong>这个价格贵不贵？</strong>股息率等于分红除以股价，高股息可能不是分红好，而是股价跌出来的。只看股息率，容易买在基本面向下、股价半山腰的位置。第二，<strong>不同波动性的资产，凭什么用同一条3.5%的线？</strong>水电的盈利几乎不动，煤炭的盈利大起大落，要求后者的股息补偿理应更高，旧规则不区分。第三，<strong>红利资产还有多少上行空间？</strong>没有一个理论估值做锚，这个问题无从回答。</p>
+
+<h1>二、新框架：三层结构，先定性、再定价、后补偿</h1>
+<p><strong>第一层，先把"真红利"挑出来。</strong>六道门槛同时满足：27年预期ROE不低于7%，这是质量线；ROE的变异系数不能超过全市场波动的三成分位，这是稳定线——过去七年盈利大起大落的不算；静态和预期股息率都要在2%以上，这是回报线；分红稳定、现金流对分红覆盖1.5倍以上、市值100亿以上。过了这六道门，全市场5400多只股票剩下129只，这就是我们的价值资产池。</p>
+<p><strong>第二层，给每只股票算一个"理论上的合理PB"。</strong>这是本次升级的核心。方法是把未来的分红流折现：第一阶段五年，ROE就用27年预期值，分红率用近三年平均，分红增长等于ROE乘以留存率；第二阶段十年，假设ROE每年退两个点、分红率逐步往上加——成熟公司的钱慢慢从再投资转向分红，这是产业规律；第三阶段永续，增长按2%。全部按7%的贴现率折回来，除以每股净资产，就是理论PB。理论PB上下浮动两成，构成一条"估值走廊"：现价低于走廊下沿，就是低估；高出上沿，就是溢价。</p>
+<p>这里有一个技术细节要交代：分红增长率我们封了顶，第一阶段不超过6.5%。因为有一类高ROE、低分红的公司——典型如部分高端制造——留存收益很高，如果不封顶，模型会把它们的留存收益无限外推成分红，算出一个虚高的理论PB，把成长股错标成"深度低估的红利"。封顶之后，这类资产给出的就是不含成长期权的、纯分红视角的下限估值，定性就清晰了。</p>
+<p><strong>第三层，盈利波动补偿。</strong>不同行业该要求多高的股息率？基准取盈利最稳的水电：ROE标准差约1.1个百分点，对应要求股息率3.1%。之后盈利波动每多一个点，要求股息率加0.3个点。当前27年预期股息率减去这个"应有股息率"，就是<strong>超额股息率</strong>——正数越大，安全边际越厚。</p>
+
+<h1>三、红利得分怎么打：四块拼图，各有分工</h1>
+<p>池内129只股票做横截面排序，红利综合分由四部分构成。</p>
+<p><strong>估值折价，权重35%，最大头。</strong>现价PB除以理论PB，越低分越高。它回答"相对自身合理价值，现在打了几折"。定价给最大权重，是因为这套框架的初衷就是解决"贵不贵"的问题。</p>
+<p><strong>股息安全边际，权重25%。</strong>就是刚才说的超额股息率。它回答"拿在手里的现金流，相对盈利波动，够不够补偿"。</p>
+<p><strong>盈利质量与稳定，权重20%。</strong>ROE水平和波动各占一半。高分红如果建立在下滑的盈利上，是守不住的。</p>
+<p><strong>分红可持续，权重20%。</strong>现金流覆盖、三年平均分红率、数据完整性。防止"一次性高分红"混进池子。</p>
+<p>另外贴了一个增强标签，借用市场公认的"红马"思路：未来三年EPS增速都不深度转负，且盈利波动低于市场中位——既是真红利，盈利还不失速，攻守兼备。当前池内79只贴标。</p>
+
+<h1>四、先校准，再看结果</h1>
+<p>框架移植我们做了外部校准：拿参考底稿里两只案例资产的完整参数，用我们的公式复算理论估值，偏差在千分之四以内——公式实现是忠实的。我们还统一取7%的贴现率，比参考口径略保守，宁可不乐观。</p>
+<p>先说指数层面：以主流红利指数当前参数测算，理论PB约0.85，实际PB约0.92，<strong>整体溢价8%左右，已经在估值走廊上沿附近</strong>。翻译一下：现在这个位置，红利指数层面的性价比有限，"闭着眼睛买红利"的阶段过去了，超额收益主要来自池内找折价的个体。</p>
+<p>个股层面，截至11月20日截面：129只入池，81只低于走廊下沿、45只在走廊内、仅3只溢价。得分前五：宁德时代86.4、苏美达84.1、中创智领83.4、紫金矿业81.6、潍柴动力81.5。可以看到一个新的形态：<strong>排前面的不全是传统意义上的公用事业和高速公路，而是一批"高ROE＋股息抬升"的制造类资产</strong>——比如宁德时代，ROE 23%、27年预期股息率5.45%，而理论PB 4.25、现价只有它的一半。这类标的要提示：框架给的是纯分红视角的下限估值，配置时应作为"红利＋周期"双属性看待，不能当纯防守仓。</p>
+<p>传统稳健类里，华润三九、华域汽车、格力电器都在前十，超额股息率1.6到2.1个点，属于"走廊深折价＋股息足额"的标准形态。还有一个数据口径的发现要如实汇报：几家消费类龙头——乳制品、肉制品、调味品——这次没进池，原因是源表的分红稳定字段判定它们不稳定，因为2025年分红率超过100%、属于超额派息。这是极差式判定口径的局限，不一定是基本面问题，我们列入了复核清单。</p>
+
+<h1>五、局限与跟踪安排</h1>
+<p>四个局限如实交代。第一，理论估值对贴现率和永续增长高度敏感——贴现率与永续增速之差变动1个点，永续项价值变动约四分之一；如果利率中枢进一步下移，全部理论PB会上移，折溢价排序会跟着漂移，我们会随利率滚动重算。第二，ROE和股息率用的都是27年一致预期，预期下修会直接改变池子。第三，框架隐含"盈利不再大幅回落"的假设，对周期类红利要配合我们现有的拥挤度和价格因子做仓位控制。第四，分红稳定字段是源表口径，误伤案例已列入复核。</p>
+<p>落地安排三件事：一是红利模块已嵌入每周更新的主模型，和行业评分同频刷新；二是对前二十的标的设跟踪条件——上修中断、现金流覆盖恶化或拥挤度快速抬升，触发减仓复核；三是月底完成消费类龙头的分红口径复核。</p>
+
+<h1>六、结语</h1>
+<p>一句话收尾：这次升级，把红利选股从"看股息率高不高"，升级为"好价格的好红利"——用理论估值定贵贱，用波动补偿定安全边际，用四维得分定排序。指数层面红利已经不便宜，但池内还有81只在走廊下沿之下，这就是我们的工作空间。谢谢各位，欢迎提问。</p>
+
+<div class="speech-note">
+<p>【备答要点】① 若被问"为什么贴现率取7%"：约等于无风险利率加沪深300风险溢价，与当前市场交易隐含水平一致；取保守值，宁可少高估。② 若被问"宁德时代凭什么排第一"：它是"红利＋周期"双属性，框架给出的是不含成长期权的下限估值，仓位按进攻性红利管理，不是纯防守。③ 若被问"消费龙头为何落选"：源表分红稳定字段按极差判定，2025年超额派息被判为跳变，已列入复核清单。④ 若被问"和直接买红利ETF的区别"：指数已在走廊上沿附近溢价8%，个股折价才是alpha来源，这正是主动筛选的价值。</p>
+</div>
+
+</body>
+</html>

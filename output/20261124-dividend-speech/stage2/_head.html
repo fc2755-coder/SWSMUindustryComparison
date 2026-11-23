@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="docx-page-size" content="A4">
+<title>回测调整因子权重——长短因子协作与行业配置建议</title>
+<style>
+:root {
+  --fs-cover-title: 26pt;
+  --fs-h1: 15pt;
+  --fs-h2: 13pt;
+  --fs-body: 12pt;
+  --fs-small: 10.5pt;
+  --ff-heading: "黑体", "SimHei", sans-serif;
+  --ff-body: "宋体", "SimSun", serif;
+  --lh-body: 1.7;
+  --fw-bold: 700;
+  --color-primary: #1A4E8A;
+  --color-text: #1F1F1F;
+  --color-muted: #5F6B7A;
+  --color-border: #D8DEE6;
+  --color-bg: #F4F7FA;
+  --color-callout-bg: #EEF4FB;
+  --color-accent: #B0762A;
+  --spacing-paragraph: 0.7em;
+  --spacing-section: 1.8em;
+  --page-content-width: 15.6cm;
+  --margin-page: 2.4cm;
+}
+@page {
+  @bottom-center { content: counter(page); }
+}
+@page cover {
+  @bottom-center { content: none; }
+}
+section[role="cover"] { page: cover; }
+body {
+  font-family: var(--ff-body);
+  font-size: var(--fs-body);
+  color: var(--color-text);
+  line-height: var(--lh-body);
+  max-width: var(--page-content-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+p { font-size: var(--fs-body); text-align: justify; text-indent: 2em; margin: 0 0 var(--spacing-paragraph) 0; }
+h1 {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-bold);
+  color: var(--color-primary);
+  text-align: left;
+  margin: var(--spacing-section) 0 var(--spacing-paragraph) 0;
+}
+h2 {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-bold);
+  color: var(--color-text);
+  text-align: left;
+  margin: var(--spacing-paragraph) 0 var(--spacing-paragraph) 0;
+}
+strong { font-weight: var(--fw-bold); }
+.speech-note {
+  font-size: var(--fs-small);
+  color: var(--color-muted);
+  text-align: justify;
+  text-indent: 0;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-bg);
+  padding: 8px 12px;
+  margin: 0 0 var(--spacing-section) 0;
+}
+.speech-note p { font-size: var(--fs-small); color: var(--color-muted); text-indent: 0; text-align: justify; margin: 0; }
+.cover-title {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-cover-title);
+  font-weight: var(--fw-bold);
+  color: var(--color-primary);
+  text-align: center;
+  margin: 3.2cm 0 0.6cm 0;
+  line-height: 1.4;
+}
+.cover-subtitle {
+  font-family: var(--ff-body);
+  font-size: var(--fs-h2);
+  color: var(--color-muted);
+  text-align: center;
+  text-indent: 0;
+  margin: 0 0 1.2cm 0;
+}
+.cover-meta {
+  font-family: var(--ff-body);
+  font-size: var(--fs-body);
+  color: var(--color-muted);
+  text-align: center;
+  text-indent: 0;
+  margin: 0.35cm 0;
+}
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--spacing-paragraph) 0 var(--spacing-section) 0;
+}
+table.data-table caption {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-bold);
+  color: var(--color-muted);
+  text-align: center;
+  caption-side: top;
+  padding-bottom: 6px;
+}
+table.data-table th {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-bold);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  padding: 6px 8px;
+  text-align: center;
+}
+table.data-table td {
+  font-size: var(--fs-small);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 6px 8px;
+  text-align: center;
+}
+table.data-table td.left { text-align: left; }
+.source-note {
+  font-size: var(--fs-small);
+  color: var(--color-muted);
+  text-align: left;
+  text-indent: 0;
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
+  margin-top: var(--spacing-section);
+}
+</style>
+</head>
