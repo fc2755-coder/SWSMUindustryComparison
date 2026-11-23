@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="docx-page-size" content="A4">
+<title>回测调整因子权重——长短因子协作与行业配置建议</title>
+<style>
+:root {
+  --fs-cover-title: 26pt;
+  --fs-h1: 15pt;
+  --fs-h2: 13pt;
+  --fs-body: 12pt;
+  --fs-small: 10.5pt;
+  --ff-heading: "黑体", "SimHei", sans-serif;
+  --ff-body: "宋体", "SimSun", serif;
+  --lh-body: 1.7;
+  --fw-bold: 700;
+  --color-primary: #1A4E8A;
+  --color-text: #1F1F1F;
+  --color-muted: #5F6B7A;
+  --color-border: #D8DEE6;
+  --color-bg: #F4F7FA;
+  --color-callout-bg: #EEF4FB;
+  --color-accent: #B0762A;
+  --spacing-paragraph: 0.7em;
+  --spacing-section: 1.8em;
+  --page-content-width: 15.6cm;
+  --margin-page: 2.4cm;
+}
+@page {
+  @bottom-center { content: counter(page); }
+}
+@page cover {
+  @bottom-center { content: none; }
+}
+section[role="cover"] { page: cover; }
+body {
+  font-family: var(--ff-body);
+  font-size: var(--fs-body);
+  color: var(--color-text);
+  line-height: var(--lh-body);
+  max-width: var(--page-content-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+p { font-size: var(--fs-body); text-align: justify; text-indent: 2em; margin: 0 0 var(--spacing-paragraph) 0; }
+h1 {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-bold);
+  color: var(--color-primary);
+  text-align: left;
+  margin: var(--spacing-section) 0 var(--spacing-paragraph) 0;
+}
+h2 {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-bold);
+  color: var(--color-text);
+  text-align: left;
+  margin: var(--spacing-paragraph) 0 var(--spacing-paragraph) 0;
+}
+strong { font-weight: var(--fw-bold); }
+.speech-note {
+  font-size: var(--fs-small);
+  color: var(--color-muted);
+  text-align: justify;
+  text-indent: 0;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-bg);
+  padding: 8px 12px;
+  margin: 0 0 var(--spacing-section) 0;
+}
+.speech-note p { font-size: var(--fs-small); color: var(--color-muted); text-indent: 0; text-align: justify; margin: 0; }
+.cover-title {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-cover-title);
+  font-weight: var(--fw-bold);
+  color: var(--color-primary);
+  text-align: center;
+  margin: 3.2cm 0 0.6cm 0;
+  line-height: 1.4;
+}
+.cover-subtitle {
+  font-family: var(--ff-body);
+  font-size: var(--fs-h2);
+  color: var(--color-muted);
+  text-align: center;
+  text-indent: 0;
+  margin: 0 0 1.2cm 0;
+}
+.cover-meta {
+  font-family: var(--ff-body);
+  font-size: var(--fs-body);
+  color: var(--color-muted);
+  text-align: center;
+  text-indent: 0;
+  margin: 0.35cm 0;
+}
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--spacing-paragraph) 0 var(--spacing-section) 0;
+}
+table.data-table caption {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-bold);
+  color: var(--color-muted);
+  text-align: center;
+  caption-side: top;
+  padding-bottom: 6px;
+}
+table.data-table th {
+  font-family: var(--ff-heading);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-bold);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  padding: 6px 8px;
+  text-align: center;
+}
+table.data-table td {
+  font-size: var(--fs-small);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 6px 8px;
+  text-align: center;
+}
+table.data-table td.left { text-align: left; }
+.source-note {
+  font-size: var(--fs-small);
+  color: var(--color-muted);
+  text-align: left;
+  text-indent: 0;
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
+  margin-top: var(--spacing-section);
+}
+</style>
+</head>
+
+<section role="cover">
+  <div class="cover-title">回测调整因子权重<br>优化长短因子协作</div>
+  <p class="cover-subtitle">——当前模型推荐：房地产、国防军工——</p>
+  <p class="cover-meta">行业比较与个股筛选模型 · 因子有效性回测汇报</p>
+  <p class="cover-meta">2026年11月17日</p>
+</section>
+
+<div class="speech-note">
+<p>【口播提示】全场约12分钟。核心信息只有三句：第一，这次调权重不是拍脑袋，每个数字背后都有回测证据；第二，新的权重结构让长短因子各司其职——长因子管方向、短因子管时点、盈利修正管催化；第三，模型当前给出的答案是房地产和国防军工，它们的得分来自几个罕见的极值组合。</p>
+</div>
+
+<h1>一、开场：为什么这次要用回测说话</h1>
+<p>各位领导，今天汇报的主题是"回测调整因子权重，优化长短因子协作"。先说为什么做这件事。我们的行业比较模型运行了一段时间，五个因子——价格、盈利、ROE、估值、拥挤度——各自的权重，最早是按研究经验定的。经验定价最大的问题是：它没法回答"这个因子历史上真的有效吗"。</p>
+<p>所以这次我们把模型里的每一个因子，都拉到历史数据里完整跑了一遍：如果过去严格按这个因子打分选行业，能不能得到更好的排序？能，就加重；不能，就降权甚至拿掉。今天讲三件事：回测怎么做的、权重为什么这么改、以及模型现在指向哪里。</p>
+
+<h1>二、回测的口径：三套面板，各管各的周期</h1>
+<p>先交代数据口径，这决定了每个结论的置信度。我们用了三套面板，分别对应三个时间频率。</p>
+<p><strong>第一套，周度面板。</strong>31个申万一级行业的周收益，从2021年1月到2026年10月，293个截面。价格动量、交易拥挤这两类短周期因子都在这里检验。</p>
+<p><strong>第二套，季度面板。</strong>公募基金季度配置比例，持仓历史从2004年就有，但收益数据只有2021年之后的周度面板，所以拥挤度回测限定在2021年一季度以来的23个季度。</p>
+<p><strong>第三套，年度面板。</strong>估值、ROE、净利增速、股息率这些年度基本面因子，历史可以追溯到2007年，但真实的年度收益只能算到2021到2025这五个年末截面。所以年度因子的结论我们只看方向，不谈显著性强度，这一点后面还会强调。</p>
+<p>方法上统一用秩相关：每期截面算因子排名和未来收益排名的相关系数，汇总均值、t值和胜率。t值超过2，我们才认为显著。</p>
+
+<h1>三、回测的四个核心发现</h1>
+<p><strong>发现一：交易拥挤是最强的负向信号。</strong>行业成交额占比冲到高位之后，未来1周收益与拥挤度的秩相关是负0.086，t值负2.93；拉长到未来4周更强，负0.116。翻译过来：一个行业被炒到全市场都盯着它交易的时候，接下来一两周到一个月，大概率要还债。</p>
+<p><strong>发现二：公募加仓速度同样显著为负。</strong>配置比例环比升幅越快的行业，下个季度表现越差，秩相关负0.108，t值负2.32。注意，配置的绝对水平本身并不显著——是"加得太快"这个动作有信息，不是"配得多"这个状态有信息。</p>
+<p><strong>发现三：低估值方向为正。</strong>年末估值分位低的行业，次年收益更高的胜率五年里有四年，方向稳定。这是年度因子里最可靠的一条。</p>
+<p><strong>发现四：价格和已实现增速不给增量信息。</strong>回看1周到52周的价格动量，对行业未来收益的预测能力全部约等于零；而年末已经兑现的高净利增速，次年收益反而系统性更差，逐年秩相关五年全部为负。</p>
+
+<h1>四、权重怎么改：长短因子各司其职</h1>
+<p>基于这四条发现，我们把五因子权重从10比30比10比30比20，调整为<strong>5比30比5比35比25</strong>。表面上是几个数字，背后是一套长短因子协作的框架，一句话概括：<strong>长因子定方向，短因子定时点，盈利修正做催化。</strong></p>
+<p><strong>长周期这一端，估值分位升到35%，是权重最高的单项。</strong>它管的是"这个行业值不值得买"。估值分位用的是10年滚动窗口，衡量当前估值在自己历史里的位置，回测给出的方向胜率是年度因子里最稳的。</p>
+<p><strong>短周期这一端，拥挤度升到25%。</strong>它管的是"现在能不能买"。交易拥挤和加仓速度两重验证都显著为负，所以拥挤度在模型里是个负向排除器——得分再高的行业，只要拥挤分一低，综合分立刻被拉下来。方向和时点分开管，这就是长短协作的本意。</p>
+<p><strong>中间一层是盈利30%，内部结构改得最大。</strong>预期EPS水平占20%、同比增速降到15%、周度上修大幅升到65%。逻辑是：水平看位置，上修看变化，而回测告诉我们"变化"才值钱。我们还加了连续上修的奖励：连续两周上修加3分，三周以上加5分。</p>
+<p><strong>价格和ROE各保留5%。</strong>价格因子回测无信号，ROE近五年无贡献，这两个是观察仓，不指望贡献，只留一条跟踪线。</p>
+<p>这里要特别说明一个口径问题，避免误读：净利增速降权，否决的是"年末已实现的高增速"，而模型用的是2027年前瞻增速，前瞻口径的历史数据拿不到、没有被证伪——所以这是审慎降权，不是实证否决。ROE拐点同理，回测否决的是事后确认的拐点，前瞻拐点的价值不在本次检验范围内。</p>
+
+<h1>五、模型当前怎么说：推荐房地产、国防军工</h1>
+<p>框架讲完，看模型现在给出的答案。截至11月13日截面，综合分前三是房地产85.5、国防军工77.6、计算机77.2。重点讲前两个，它们的得分来自几个罕见的极值组合，我逐个拆开。</p>
+
+<table class="data-table">
+<caption>表1：前三行业关键指标一览（2026-11-13截面，30个一级行业口径）</caption>
+<thead><tr><th>指标</th><th>房地产</th><th>国防军工</th><th>计算机（第3）</th></tr></thead>
+<tbody>
+<tr><td>综合分 / 排名</td><td><strong>85.5 / 第1</strong></td><td><strong>77.6 / 第2</strong></td><td>77.2 / 第3</td></tr>
+<tr><td>周度盈利上修</td><td><strong>+64.6%，截面第1</strong></td><td>+1.1%，第3</td><td>+0.3%，第4</td></tr>
+<tr><td>估值分位（自身历史）</td><td><strong>PB 2.9%，近历史底部</strong></td><td>PE 10.8%，第6低</td><td>PE 39.2%，中位</td></tr>
+<tr><td>公募配置历史分位</td><td>5.2%（上季0.8%）</td><td>44.0%，中位</td><td><strong>2.2%，近十年最低区</strong></td></tr>
+<tr><td>拥挤度（越低越安全）</td><td>21.0，安全分79</td><td>40.6，中性</td><td>17.2，第3低</td></tr>
+<tr><td>近1月 / 年初以来</td><td>-10.9% / -7.3%</td><td>-6.5% / <strong>-25.0%</strong></td><td>-5.4% / -24.1%</td></tr>
+<tr><td>27E ROE</td><td>-0.4%，全行业最低</td><td>+10.8%，第19</td><td>+13.1%，第10</td></tr>
+</tbody>
+</table>
+
+<p><strong>先看房地产，它是典型的"长因子+盈利修正"共振。</strong>三个极值叠在一起：第一，周度盈利上修加64.6%，是30个行业里唯一超过50%的，截面断层第一；第二，PB估值分位只有2.9%，处在自己过去十年历史的底部区域，纵向看几乎是最便宜的时候；第三，公募配置比例的2010年以来分位只有5.2%，上一季度还是0.8%，机构手里几乎没有这个行业。同时拥挤度只有21，不存在交易过热的风险。用我们的话说：便宜、没人、预期开始上修——长因子定方向，盈利修正给催化，两个条件同时满足。</p>
+<p>它的弱点也要如实讲：27年预期ROE是负0.4%，全行业垫底，而且按利润消化口径28年仍然消化不完估值。所以房地产是<strong>困境反转</strong>型推荐，买的是估值修复和预期拐点，不是盈利质量，仓位上要按反转策略来管理。</p>
+<p><strong>再看国防军工，它是"深跌+高预期位置"的组合。</strong>27年预期EPS处在2021到2027区间的最高位，盈利水平分并列全行业第一；年初以来跌了25%，回撤充分；PE分位只有10.8%，排第6低；公募超配是负0.19个百分点，机构仍然低配；拥挤度40，中性偏安全。简单说：预期在最高位、价格在深坑里、估值不贵、机构不挤——这正是模型框架里最舒服的买入形态。</p>
+<p>一个风险提示：军工的ROE周期标签是"持续向上"，而回测里这个标签的次年收益恰恰是所有标签里最差的，平均负4.2%。所以对军工，我们采信的是它的深跌和低估值分位，对"景气持续"这个叙事本身要打折扣听。</p>
+<p>顺带一句第三名的计算机：它的看点在公募配置分位2.2%、近十年最低，连续三周盈利上修拿到顶格加分，超配负1.63个百分点是全行业第五低——同样是极度欠配加预期改善的组合，可以作为观察仓。</p>
+
+<h1>六、局限与下一步</h1>
+<p>三个局限如实交代。第一，年度因子的收益样本只有五个截面，估值方向为正这个结论，强度有限，需要逐年滚动验证。第二，个股周度上修因子只有四周历史，完全无法回测，它的65%权重靠的是逻辑推演，不是实证。第三，季报披露滞后约一个月，拥挤度信号在"披露后"口径下t值从负2.3降到负1.6，实操中的有效性介于两者之间。另外，27年前瞻增速和前瞻ROE拐点这两类前瞻因子，历史截面缺失，本次回测覆盖不到，这也是我们把它们降权而非剔除的原因。</p>
+<p>下一步三件事：一是把这套回测流程季度化，每期数据更新后重跑，让权重跟着证据滚动校准；二是随着周度上修数据积累，尽快把盈利修正因子纳入实证检验；三是对房地产、军工两个推荐行业设置跟踪条件——上修中断或拥挤度快速抬升，就是减仓信号。</p>
+
+<h1>七、结语</h1>
+<p>最后用一句话收尾：这次调整，我们让证据决定权重，让长因子管方向、短因子管时点、盈利修正管催化。而在当前的截面上，这套框架指向了两个名字——房地产和国防军工。一个靠历史底部的估值和断层的第一名上修，一个靠最深回撤和最高预期的组合。谢谢各位，下面欢迎提问。</p>
+
+<div class="speech-note">
+<p>【备答要点】① 若被问"增速为何只降不删"：回测否决的是当期已实现增速，27E前瞻口径未被证伪，降权是审慎处理。② 若被问"拥挤度为何不设更高权重"：披露滞后使实操t值打折，25%是证据强度和可执行性的折中。③ 若被问"地产ROE全行业最低为何排第一"：模型定价的是估值分位+上修斜率，ROE权重仅5%，且反转策略天然买在盈利最差时。</p>
+</div>
+
+</body>
+</html>

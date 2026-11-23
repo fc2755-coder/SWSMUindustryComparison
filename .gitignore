@@ -1,0 +1,9 @@
+# WorkBuddy 本地配置与记忆（不入库）
+.workbuddy/
+.playwright-cli/
+_tmp_*
+_head_part.html
+*.pyc
+__pycache__/
+.DS_Store
+Thumbs.db
